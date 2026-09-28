@@ -119,8 +119,7 @@ type R = {
 const model = "gemini-2.5-flash";
 // Share GPT request settings across commands and scheduled summaries.
 const completionOptions = {
-	max_completion_tokens: 4096,
-	reasoning_effort: "none",
+max_tokens: 4096,
 } as const;
 function getGenModel(env: Env) {
 	const openai = new OpenAI({
