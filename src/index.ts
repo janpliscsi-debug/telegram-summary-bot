@@ -321,7 +321,10 @@ export default {
 		}
 		console.debug("cron processed");
 	},
-	fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
+fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
+		console.log("Incoming request:", request.method, request.url);
+		console.log("Token exists:", !!env.SECRET_TELEGRAM_API_TOKEN);
+		
 		await new TelegramBot(env.SECRET_TELEGRAM_API_TOKEN)
 			.on('status', async (ctx) => {
 				const res = (await ctx.reply('我家还蛮大的'))!;
