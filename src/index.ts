@@ -122,12 +122,16 @@ const completionOptions = {
 max_tokens: 4096,
 } as const;
 function getGenModel(env: Env) {
+	if (!env.GEMINI_API_KEY) {
+		console.error("GEMINI_API_KEY is missing");
+		throw new Error("GEMINI_API_KEY is missing");
+	}
+
 	const openai = new OpenAI({
 		apiKey: env.GEMINI_API_KEY,
 		baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
-		timeout: 999999999999,
 	});
-	const account_id = env.account_id;
+
 	return openai;
 }
 
