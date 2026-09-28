@@ -444,6 +444,8 @@ ${results.map((r: any) => `${r.userName}: ${r.content} ${r.messageId == null ? "
 				return new Response('ok');
 			})
 			.on("summary", async (bot) => {
+    // Разрешаем команду только в личных сообщениях
+    if (bot.update.message?.chat.type !== "private") { return new Response('ok'); }
 				const groupId = bot.update.message!.chat.id;
 				if (bot.update.message!.text!.split(" ").length === 1) {
 					await bot.reply('请输入要查询的时间范围/消息数量, 如 /summary 114h 或 /summary 514');
