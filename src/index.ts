@@ -116,7 +116,7 @@ type R = {
 	messageId: number;
 	timeStamp: number;
 }
-const model = "gpt-5.6-luna";
+const model = "gemini-2.0-flash";
 // Share GPT request settings across commands and scheduled summaries.
 const completionOptions = {
 	max_completion_tokens: 4096,
@@ -125,7 +125,7 @@ const completionOptions = {
 function getGenModel(env: Env) {
 	const openai = new OpenAI({
 		apiKey: env.GEMINI_API_KEY,
-		baseURL: "https://api.tokener.ai/v1",
+		baseURL: "https://generativelanguage.googleapis.com/v1beta/openai/",
 		timeout: 999999999999,
 	});
 	const account_id = env.account_id;
