@@ -643,6 +643,32 @@ ${results.map((r: any) => `${r.userName}: ${r.content} ${r.messageId == null ? "
 				}
 				return new Response('ok');
 			})
+
+			.on("groups", async (bot) => {
+    if (bot.update.message?.chat.type !== "private") {
+        return new Response('ok');
+    }
+
+    const { results } = await env.DB.prepare(`
+        SELECT groupId, groupName, COUNT(*) as cnt
+        FROM Messages
+        GROUP BY groupId, groupName
+        ORDER BY MAX(timeStamp) DESC
+        LIMIT 30
+    `).all();
+
+    if (results.length === 0) {
+        await bot.reply('Пока нет сохранённых групп. Добавьте бота в группы и подождите появления сообщений.');
+        return new Response('ok');
+    }
+
+    const text = results.map((r: any) => 
+        `• ${r.groupName || 'Без названия'}\n  ID: \`${r.groupId}\` (${r.cnt} сообщ.)`
+    ).join('\n\n');
+
+    await bot.reply(`Группы:\n\n${text}`, 'Markdown');
+    return new Response('ok');
+})
 			.handle(request.clone());
 		return new Response('ok');
 	},
