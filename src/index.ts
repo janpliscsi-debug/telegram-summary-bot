@@ -444,97 +444,97 @@ ${results.map((r: any) => `${r.userName}: ${r.content} ${r.messageId == null ? "
 				return new Response('ok');
 			})
 			.on("summary", async (bot) => {
-    // Разрешаем команду только в личных сообщениях
-    if (bot.update.message?.chat.type !== "private") { return new Response('ok'); }
-				const groupId = bot.update.message!.chat.id;
-				if (bot.update.message!.text!.split(" ").length === 1) {
-					await bot.reply('请输入要查询的时间范围/消息数量, 如 /summary 114h 或 /summary 514');
-					return new Response('ok');
-				}
-				const summary = bot.update.message!.text!.split(" ")[1];
-				let results: Record<string, unknown>[];
-				try {
-					const test = parseInt(summary);
-					if (Number.isNaN(test)) {
-						throw new Error("not a number");
-					}
-					if (test < 0) {
-						throw new Error("negative number");
-					}
-					if (!Number.isFinite(test)) {
-						throw new Error("infinite number");
-					}
-				}
-				catch (e: any) {
-					await bot.reply('请输入要查询的时间范围/消息数量, 如 /summary 114h 或 /summary 514  ' + e.message);
-					return new Response('ok');
-				}
-				if (summary.endsWith("h")) {
-					results = (await env.DB.prepare(`
-						SELECT *
-						FROM Messages
-						WHERE groupId=? AND timeStamp >= ?
-						ORDER BY timeStamp ASC
-						`)
-						.bind(groupId, Date.now() - parseInt(summary) * 60 * 60 * 1000)
-						.all()).results;
-				}
-				else {
-					results = (await env.DB.prepare(`
-						WITH latest_n AS (
-							SELECT * FROM Messages
-							WHERE groupId=?
-							ORDER BY timeStamp DESC
-							LIMIT ?
-						)
-						SELECT * FROM latest_n
-						ORDER BY timeStamp ASC
-						`)
-						.bind(groupId, Math.min(parseInt(summary), 4000))
-						.all()).results;
-				}
-				if (results.length > 0) {
-					try {
-						const result = await getGenModel(env).chat.completions.create(
-							{
-								model,
-								messages: [
-									{
-										"role": "system",
-										content: SYSTEM_PROMPTS.summarizeChat,
-									},
-									{
-										"role": "user",
-										content: results.flatMap(
-											(r: any) => [
-												dispatchContent(`====================`),
-												dispatchContent(`${r.userName}:`),
-												dispatchContent(r.content),
-												dispatchContent(getMessageLink(r)),
-											]
-										)
-									}
-								],
-								...completionOptions,
-							})
+    // Только личные сообщения
+    if (bot.update.message?.chat.type !== "private") {
+        return new Response('ok');
+    }
 
+    const text = bot.update.message!.text || "";
+    const parts = text.trim().split(/\s+/);
 
-						let res = await bot.reply(
-							messageTemplate(foldText(
-								fixLink(
-									processMarkdownLinks(telegramifyMarkdown(result.choices[0].message.content || "", 'keep'))))), 'MarkdownV2');
-						if (!res?.ok) {
-							console.error("Failed to send reply", res?.statusText, await res?.text());
-						}
-					}
-					catch (e) {
-						logModelError(e, { command: 'summary', model }, [env.GEMINI_API_KEY, env.SECRET_TELEGRAM_API_TOKEN]);
-						await bot.reply('概括失败，暂时无法完成请求，请稍后重试。');
-					}
-				}
+    // Формат: /summary <groupId> <время или количество>
+    // Пример: /summary -1001234567890 24h
+    // Пример: /summary -1001234567890 200
+    if (parts.length < 3) {
+        await bot.reply('Использование:\n/summary <ID_группы> 24h\n/summary <ID_группы> 100\n\nСначала получите список групп командой /groups');
+        return new Response('ok');
+    }
 
-				return new Response('ok');
-			})
+    const groupId = parts[1];
+    const summary = parts[2];
+
+    let results: Record<string, unknown>[];
+    try {
+        const test = parseInt(summary);
+        if (Number.isNaN(test) && !summary.endsWith("h")) {
+            throw new Error("некорректный параметр");
+        }
+    } catch (e: any) {
+        await bot.reply('Укажите время (например 24h) или количество сообщений (например 100)');
+        return new Response('ok');
+    }
+
+    if (summary.endsWith("h")) {
+        results = (await env.DB.prepare(`
+            SELECT * FROM Messages
+            WHERE groupId = ? AND timeStamp >= ?
+            ORDER BY timeStamp ASC
+        `).bind(groupId, Date.now() - parseInt(summary) * 60 * 60 * 1000).all()).results;
+    } else {
+        results = (await env.DB.prepare(`
+            WITH latest_n AS (
+                SELECT * FROM Messages
+                WHERE groupId = ?
+                ORDER BY timeStamp DESC
+                LIMIT ?
+            )
+            SELECT * FROM latest_n
+            ORDER BY timeStamp ASC
+        `).bind(groupId, Math.min(parseInt(summary), 4000)).all()).results;
+    }
+
+    if (results.length === 0) {
+        await bot.reply('Сообщений за указанный период не найдено.');
+        return new Response('ok');
+    }
+
+    try {
+        const result = await getGenModel(env).chat.completions.create({
+            model,
+            messages: [
+                {
+                    role: "system",
+                    content: SYSTEM_PROMPTS.summarizeChat,
+                },
+                {
+                    role: "user",
+                    content: results.flatMap((r: any) => [
+                        dispatchContent(`====================`),
+                        dispatchContent(`${r.userName}:`),
+                        dispatchContent(r.content),
+                        dispatchContent(getMessageLink(r)),
+                    ])
+                }
+            ],
+            ...completionOptions,
+        });
+
+        let res = await bot.reply(
+            messageTemplate(foldText(
+                fixLink(
+                    processMarkdownLinks(telegramifyMarkdown(result.choices[0].message.content || "", 'keep'))))),
+            'MarkdownV2'
+        );
+        if (!res?.ok) {
+            console.error("Failed to send reply", res?.statusText, await res?.text());
+        }
+    } catch (e) {
+        logModelError(e, { command: 'summary', model }, [env.GEMINI_API_KEY, env.SECRET_TELEGRAM_API_TOKEN]);
+        await bot.reply('Не удалось сделать саммари. Попробуйте позже.');
+    }
+
+    return new Response('ok');
+})
 			.on(':message', async (bot) => {
 				if (!bot.update.message!.chat.type.includes('group')) {
 					await bot.reply('I am a bot, please add me to a group to use me.');
