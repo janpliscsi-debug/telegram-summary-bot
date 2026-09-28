@@ -116,7 +116,7 @@ type R = {
 	messageId: number;
 	timeStamp: number;
 }
-const model = "gemini-2.0-flash";
+const model = "gemini-2.5-flash";
 // Share GPT request settings across commands and scheduled summaries.
 const completionOptions = {
 	max_completion_tokens: 4096,
